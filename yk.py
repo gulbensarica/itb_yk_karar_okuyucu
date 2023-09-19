@@ -57,22 +57,18 @@ def convert_to_text(pdf_path):
             if birlesmis_sayfa:  
                 text.append(birlesmis_sayfa + sayfa) 
                 birlesmis_sayfa = ''
+               
             else:
                 text.append(sayfa) 
         else:
             birlesmis_sayfa += sayfa
+            
 
     if birlesmis_sayfa:  
         text.append(birlesmis_sayfa)
     
     return text
-"""
-if __name__ == '__main__':
-    folder_name = "Input"
-    folder_path = os.path.join(os.getcwd(), folder_name)
-    for doc_file in Path(folder_path).glob('*.doc?'):
-        word2pdf(str(doc_file))
-"""
+
 def tarih(text):
     toplanti_tarihi =  r"Toplantı Tarihi:\s*?(\d{2}\/\d{2}\/\d{4})"
     tarihler = []
@@ -88,13 +84,12 @@ def tarih(text):
     else:
         return ""
 
-#pdf_files = get_pdf_files(folder_path)
-#print(pdf_files)
 def toplantı_no(text):
     toplanti_no =  r"Toplantı No:\s*(\d+)"
     no_eslesme = re.search(toplanti_no, text)  
     if no_eslesme:
-        toplanti_no = no_eslesme.group(1)
+        toplanti_no =int(no_eslesme.group(1))
+
     else: 
         print("Toplantı No Bulunamadı.")       
     return toplanti_no
@@ -104,7 +99,7 @@ def karar_no(text):
     kararnolari = []
     karar_no_eslesme = re.search(kararno_pattern, text) 
     if karar_no_eslesme:
-        kararno = karar_no_eslesme.group(1)
+        kararno = int(karar_no_eslesme.group(1))
         kararnolari.append(kararno)
     else:
         print("Karar No bulunamadı.")
@@ -139,11 +134,17 @@ def kararlar(text):
         karar_bul = re.search(r"Yönetim Kurulu Kararı:(.*?\s*Oy birliği ile karar verildi\.)", text, re.DOTALL)
         tum_kararlar.append(karar_bul.group(1))
     else:          
-        regex = r'\s*İlgili Birim:.*?Yönetim Kurulu Kararı: .*? '
+        regex =  r'\s*İlgili Birim:.*?Yönetim Kurulu Kararı: .*?'
         regex2 = r'Oy birliği ile karar verildi\.(.*?Başkan.*?$)'
+        regex3 = r'^\s*Yönetim Kurulu Kararı:(.*?)$'
+        regex4 = r'\s*Yönetim Kurulu Kararı:\s*\n'
+        regex5 = r'\s*İlgili Birim:\s*.*?\n'
         temizlenmis_metin = re.sub(regex, '', text, flags=re.DOTALL)
         temizlenmis_metin2 = re.sub(regex2, 'Oy birliği ile karar verildi.', temizlenmis_metin, flags=re.DOTALL)
-        tum_kararlar.append(temizlenmis_metin2)
+        temizlenmis_metin3 = re.sub(regex3, '' ,temizlenmis_metin2, flags=re.DOTALL)
+        temizlenmis_metin4 = re.sub(regex4, '' ,temizlenmis_metin3, flags=re.DOTALL)
+        temizlenmis_metin5 = re.sub(regex5,'', temizlenmis_metin4, flags=re.DOTALL)
+        tum_kararlar.append(temizlenmis_metin5)
     toplam_karar_sayisi = 0
     for her_parca in tum_kararlar:
         final_tum_kararlar=' '.join(tum_kararlar)
@@ -176,6 +177,10 @@ def yk_kararlari(pdf_path, all_data):
                 konu = topic(item)
                 ykkararlar = kararlar(item)
 
+                
+                    
+            
+
                 data = {
                     'Toplantı Tarihi': toplanti_tarihi,
                     'Toplantı No': toplanti_no,
@@ -186,9 +191,7 @@ def yk_kararlari(pdf_path, all_data):
                 all_data.append(data)
             return all_data
 
-
 if __name__ == '__main__':
-
     input_folder = "input/"  # Word belgelerinin bulunduğu klasör
     temp_folder = "temp/"  # PDF dosyalarının kaydedileceği klasör 
     folder_path = os.path.join(os.getcwd(), input_folder)
@@ -196,16 +199,14 @@ if __name__ == '__main__':
 
     for doc_file in Path(folder_path).glob('*.doc?'):
         word2pdf(str(doc_file),temp_path)
-
     # PDF dosyalarının yolu
     pdf_files = get_pdf_files(temp_folder)
 # Tüm PDF dosyaları için yk_kararlari fonksiyonunu çalıştır
 all_data = []
 final_list=[]
 for pdf_path in pdf_files:
-
     all_data = yk_kararlari(pdf_path,all_data)
-    print(type(all_data))
+    #print(type(all_data))
 
 # Önceden kaydedilmiş Excel dosyasını okuyun
 excel_path = "YK Kararları.xlsx"
@@ -217,24 +218,21 @@ except FileNotFoundError:
 new_data_df = pd.DataFrame(all_data)
 merged_df = pd.concat([existing_df, new_data_df])
 
-merged_df['Toplantı No']=merged_df['Toplantı No'].astype(int)
-merged_df['Karar No']=merged_df['Karar No'].astype(int)
-merged_df=merged_df.drop_duplicates(subset=['Toplantı Tarihi', 'Toplantı No', 'Karar No'],keep='last')
+merged_df['Toplantı No']=merged_df['Toplantı No']
+merged_df['Karar No']=merged_df['Karar No']
+merged_df = merged_df.drop_duplicates(subset=['Toplantı Tarihi', 'Toplantı No', 'Karar No'],keep='last')
+merged_df = merged_df.replace('',pd.NA).dropna(subset=['Toplantı Tarihi','Konu', 'Karar No'], how='all')
 merged_df.to_excel(excel_path, index=False)
 
 print(merged_df)
-try:
-    os.remove('temp/')
-except:
-    pass
 
-
-
-
-"""
-# Sonuçları Excel dosyasına kaydet
-df = pd.DataFrame(all_data)
-print(df)
-excel_path = "YK Kararları.xlsx"
-df.to_excel(excel_path, index=False)
-"""
+folder = 'temp'
+for filename in os.listdir(folder):
+    file_path = os.path.join(folder, filename)
+    try:
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
+    except Exception as e:
+        print('Failed to delete %s. Reason: %s' % (file_path, e))
